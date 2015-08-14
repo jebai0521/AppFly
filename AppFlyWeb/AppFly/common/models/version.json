@@ -1,0 +1,31 @@
+{
+  "name": "Version",
+  "base": "PersistedModel",
+  "idInjection": true,
+  "options": {
+    "validateUpsert": true
+  },
+  "properties": {
+    "created": {
+      "type": "date"
+    },
+    "changed": {
+      "type": "date"
+    }
+  },
+  "validations": [],
+  "relations": {
+    "app": {
+      "type": "belongsTo",
+      "model": "App",
+      "foreignKey": "appId"
+    },
+    "builds": {
+      "type": "hasMany",
+      "model": "Build",
+      "foreignKey": "versionId"
+    }
+  },
+  "acls": [],
+  "methods": {}
+}

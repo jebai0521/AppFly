@@ -37,7 +37,7 @@
 .simditor .simditor-wrapper .simditor-image-loading span {
   width: 30px;
   height: 30px;
-  background: #ffffff url(../images/loading-upload.gif) no-repeat center center;
+  background: #ffffff url(../../../img/loading-upload.gif) no-repeat center center;
   border-radius: 30px;
   position: absolute;
   top: 50%;
@@ -85,6 +85,8 @@
   /*min-height: 28px;*/
   box-sizing: border-box;
   -moz-box-sizing: border-box;
+  word-wrap: break-word !important;
+  white-space: pre-wrap !important;
 }
 .simditor .simditor-body img {
   cursor: pointer;
@@ -134,7 +136,6 @@
   width: 50px;
   height: 40px;
   outline: none;
-  overflow: hidden;
   color: #333333;
   font-size: 15px;
   line-height: 40px;
@@ -260,6 +261,14 @@
   font-size: 20px;
   color: #333333;
 }
+.simditor .simditor-toolbar .toolbar-menu ul > li .menu-item.menu-item-h4 {
+  font-size: 18px;
+  color: #333333;
+}
+.simditor .simditor-toolbar .toolbar-menu ul > li .menu-item.menu-item-h5 {
+  font-size: 16px;
+  color: #333333;
+}
 .simditor .simditor-toolbar .toolbar-menu ul > li .separator {
   display: block;
   border-top: 1px solid #cccccc;
@@ -341,6 +350,9 @@
 }
 .simditor .simditor-toolbar .toolbar-menu.toolbar-menu-table .menu-edit-table {
   display: none;
+}
+.simditor .simditor-toolbar .toolbar-menu.toolbar-menu-table .menu-edit-table ul {
+  min-width: 240px;
 }
 .simditor .simditor-toolbar .toolbar-menu.toolbar-menu-image .menu-item-upload-image {
   position: relative;
@@ -528,9 +540,8 @@
   border-radius: 3px;
   font-size: 13px;
   font-family: 'monaco', 'Consolas', "Liberation Mono", Courier, monospace;
-  /*overflow-x: auto;*/
-  white-space: pre;
-  word-wrap: break-word;
+  overflow-x: auto;
+  white-space: nowrap;
 }
 .simditor .simditor-body code, .editor-style code {
   display: inline-block;

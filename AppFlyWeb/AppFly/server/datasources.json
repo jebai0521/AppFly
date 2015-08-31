@@ -3,7 +3,27 @@
     "name": "mongodb_dev",
     "connector": "mongodb",
     "host": "127.0.0.1",
-    "database": "devDB",
+    "database": "appfly-dev",
     "port": 27017
+  },
+  "emailDs": {
+    "name": "emailDs",
+    "connector": "mail",
+    "transports": [
+
+      {
+        "type": "smtp",
+        "host": "smtp.qq.com",
+        "secure": true,
+        "port": 465,
+        "tls": {
+          "rejectUnauthorized": false
+        },
+        "auth": {
+          "user": "jebai@qq.com",
+          "pass": "gmajlkm815"
+        }
+      }
+    ]
   }
 }

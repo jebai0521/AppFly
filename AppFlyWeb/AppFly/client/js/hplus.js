@@ -66,7 +66,7 @@ $(document).ready(function () {
             //    $(window).bind("load", function() {
             //        if($("body").hasClass('fixed-sidebar')) {
             //            $('.sidebar-collapse').slimScroll({
-            //                height: 'auto',
+            //                height: '100%',
             //                railOpacity: 0.9,
             //            });
             //        }
@@ -145,3 +145,4 @@ function WinMove() {
         })
         .disableSelection();
 };
+

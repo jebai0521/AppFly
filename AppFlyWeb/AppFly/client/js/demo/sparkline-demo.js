@@ -48,12 +48,4 @@ $(function () {
         lineColor: '#17997f',
         fillColor: '#ffffff',
     });
-    $("#sparkline10").sparkline([52, 24, 8,16], {
-        type: 'pie',
-        height: '150px',
-        sliceColors: ['#00BFFF', '#81DAF5', '#F5A9A9','#FA5858']});
-    $("#sparkline11").sparkline([42, 12, 34,20], {
-        type: 'pie',
-        height: '150px',
-        sliceColors: ['#00BFFF', '#81DAF5', '#F5A9A9','#FA5858']});
 });

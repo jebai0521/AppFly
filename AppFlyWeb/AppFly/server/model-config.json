@@ -1,6 +1,8 @@
 {
   "_meta": {
     "sources": [
+      "loopback/common/models",
+      "loopback/server/models",
       "../common/models",
       "./models",
       "./node_modules/loopback-component-passport/lib/models"
@@ -14,17 +16,12 @@
   },
   "user": {
     "dataSource": "db",
-    "public": true
+    "public": true,
+    "options": {
+      "emailVerificationRequired": true
+    }
   },
-  "accessToken": {
-    "dataSource": "db",
-    "public": false
-  },
-  "userCredential": {
-    "dataSource": "db",
-    "public": false
-  },
-  "userIdentity": {
+  "AccessToken": {
     "dataSource": "db",
     "public": false
   },
@@ -51,5 +48,8 @@
   "Build": {
     "dataSource": "db",
     "public": true
+  },
+  "Email": {
+    "dataSource": "emailDs"
   }
 }

@@ -16,8 +16,7 @@ $(function() {
             }
         },
         xaxis: {
-            tickDecimals: 0,
-            tickLength: 0
+            tickDecimals: 0
         },
         colors: ["#1ab394"],
         grid: {
@@ -47,62 +46,7 @@ $(function() {
         ]
     };
     $.plot($("#flot-bar-chart"), [barData], barOptions);
-    //$.plot($("#flot-bar-chart-singup"), [barData], barOptions);
-    //$.plot($("#flot-bar-chart-trading"), [barData], barOptions);
 
-    //$.plot($("#flot-bar-chart-tradingcount"), [barData], barOptions);
-
-});
-
-
-$(function() {
-    var barOptions = {
-        series: {
-            bars: {
-                show: true,
-                barWidth: 0.6,
-                fill: true,
-                fillColor: {
-                    colors: [{
-                        opacity: 0.8
-                    }, {
-                        opacity: 0.8
-                    }]
-                }
-            }
-        },
-        xaxis: {
-            tickDecimals: 0,
-            tickLength: 0
-        },
-        colors: ["#1ab394"],
-        grid: {
-            color: "#999999",
-            hoverable: true,
-            clickable: true,
-            tickColor: "#D4D4D4",
-            borderWidth:0
-        },
-        legend: {
-            show: false
-        },
-        tooltip: true,
-        tooltipOpts: {
-            content: "x: %x, y: %y"
-        }
-    };
-    var barData = {
-        label: "bar",
-        data: [
-            [1, 34],
-            [2, 35],
-            [3, 49],
-            [4, 30.4],
-            [5, 32],
-            [6, 54]
-        ]
-    };
-    $.plot($("#flot-bar-chart-trading"), [barData], barOptions);
 });
 
 $(function() {
@@ -122,8 +66,7 @@ $(function() {
             }
         },
         xaxis: {
-            tickDecimals: 0,
-            tickLength: 0
+            tickDecimals: 0
         },
         colors: ["#1ab394"],
         grid: {
@@ -152,105 +95,51 @@ $(function() {
             [6, 44]
         ]
     };
-    //$.plot($("#flot-line-chart"), [barData], barOptions);
-    $.plot($("#flot-bar-chart-singup"), [barData], barOptions);
-    //$.plot($("#flot-bar-chart-tradingcount"), [barData], barOptions);
+    $.plot($("#flot-line-chart"), [barData], barOptions);
 
 });
-
+//Flot Pie Chart
 $(function() {
-    var barOptions = {
+
+    var data = [{
+        label: "数据 1",
+        data: 21,
+        color: "#d3d3d3",
+    }, {
+        label: "数据 2",
+        data: 3,
+        color: "#bababa",
+    }, {
+        label: "数据 3",
+        data: 15,
+        color: "#79d2c0",
+    }, {
+        label: "数据 4",
+        data: 52,
+        color: "#1ab394",
+    }];
+
+    var plotObj = $.plot($("#flot-pie-chart"), data, {
         series: {
-            lines: {
-                show: true,
-                lineWidth: 2,
-                fill: true,
-                fillColor: {
-                    colors: [{
-                        opacity: 0.0
-                    }, {
-                        opacity: 0.0
-                    }]
-                }
+            pie: {
+                show: true
             }
         },
-        xaxis: {
-            tickDecimals: 0,
-            tickLength: 0
-        },
-        colors: ["#1ab394"],
         grid: {
-            color: "#999999",
-            hoverable: true,
-            clickable: true,
-            tickColor: "#D4D4D4",
-            borderWidth:0
-        },
-        legend: {
-            show: false
+            hoverable: true
         },
         tooltip: true,
         tooltipOpts: {
-            content: "x: %x, y: %y"
+            content: "%p.0%, %s", // show percentages, rounding to 2 decimal places
+            shifts: {
+                x: 20,
+                y: 0
+            },
+            defaultTheme: false
         }
-    };
-    var barData = {
-        label: "bar",
-        data: [
-            [1, 12],
-            [2, 8],
-            [3, 10],
-            [4, 15],
-            [5, 17],
-            [6, 12]
-        ]
-    };
-    $.plot($("#flot-bar-chart-tradingcount"), [barData], barOptions);
+    });
 
 });
-
-//Flot Pie Chart
-//$(function() {
-//
-//    var data = [{
-//        label: "数据 1",
-//        data: 21,
-//        color: "#d3d3d3"
-//    }, {
-//        label: "数据 2",
-//        data: 3,
-//        color: "#bababa"
-//    }, {
-//        label: "数据 3",
-//        data: 15,
-//        color: "#79d2c0"
-//    }, {
-//        label: "数据 4",
-//        data: 52,
-//        color: "#1ab394"
-//    }];
-//
-//    var plotObj = $.plot($("#flot-pie-chart"), data, {
-//        series: {
-//            pie: {
-//                show: true
-//            }
-//        },
-//        grid: {
-//            hoverable: true
-//        },
-//        tooltip: true,
-//        tooltipOpts: {
-//            content: "%p.0%, %s", // show percentages, rounding to 2 decimal places
-//            shifts: {
-//                x: 20,
-//                y: 0
-//            },
-//            defaultTheme: false
-//        }
-//    });
-//
-//});
 
 $(function() {
 
@@ -331,7 +220,6 @@ $(function() {
         },
         colors: ["#1ab394"],
         xaxis: {
-            tickLength: 0,
             tickFormatter: function() {
                 return "";
             }
@@ -1315,79 +1203,18 @@ $(function() {
         [1220824800000, 0.7010],
         [1220911200000, 0.70050]
     ];
-    var twelevemoth =[
-        [1167606000000, 35800],
-        [1169592000000, 13200],
-        [1172184000000, 45000],
-        [1174776000000, 32000],
-        [1177368000000, 28000],
-        [1179960000000, 28500],
 
-    ];
-    var sixmoth =[
-        [1167606000000, 45800],
-        [1169592000000, 55000],
-        [1172184000000, 47000],
-        [1174776000000, 45000],
-        [1177368000000, 60000],
-        [1179960000000, 46550],
-    ];
-    //var sixmoth =[
-    //    [1167606000000, 0.4580],
-    //    [1167692400000, 0.4580],
-    //    [1167778800000, 0.45470],
-    //    [1167865200000, 0.45490],
-    //    [1167951600000, 0.46130],
-    //    [1168038000000, 0.46550],
-    //];
-    var threemoth =[
-        [1167606000000, 95580],
-        [1169592000000, 85800],
-        [1172184000000, 85000],
-        [1174776000000, 78000],
-        [1177368000000, 104000],
-        [1179960000000, 93000],
-    ];
-    var twomoth =[
-        [1167606000000, 87500],
-        [1169592000000, 82500],
-        [1172184000000, 108000],
-        [1174776000000, 120000],
-        [1177368000000, 111000],
-        [1179960000000, 140000],
-    ];
-    var onemoth =[
-        [1167606000000, 75800],
-        [1169592000000, 87000],
-        [1172184000000, 68000],
-        [1174776000000, 75000],
-        [1177368000000, 88000],
-        [1179960000000, 76000],//1168038000000
-    ];
     function euroFormatter(v, axis) {
         return "&yen;"+v.toFixed(axis.tickDecimals);
     }
 
     function doPlot(position) {
         $.plot($("#flot-line-chart-multi"), [{
-            data: twelevemoth,
-            label: "12月以上",
-            yaxis: 2
+            data: oilprices,
+            label: "油价 (&yen;)"
         }, {
-            data: sixmoth,
-            label: "6-12个月",
-            yaxis: 2
-        },{
-            data: threemoth,
-            label: "3-6个月",
-            yaxis: 2
-        },{
-            data: twomoth,
-            label: "1-3个月",
-            yaxis: 2
-        },{
-            data: onemoth,
-            label: "<1个月",
+            data: exchangerates,
+            label: "美元/人民币汇率",
             yaxis: 2
         }], {
             xaxes: [{

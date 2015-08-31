@@ -3,8 +3,9 @@
     // AMD. Register as an anonymous module.
     define('simditor', ["jquery",
       "simple-module",
-      "simple-uploader"], function ($, SimpleModule, simpleUploader) {
-      return (root.returnExportsGlobal = factory($, SimpleModule, simpleUploader));
+      "simple-hotkeys",
+      "simple-uploader"], function ($, SimpleModule, simpleHotkeys, simpleUploader) {
+      return (root.returnExportsGlobal = factory($, SimpleModule, simpleHotkeys, simpleUploader));
     });
   } else if (typeof exports === 'object') {
     // Node. Does not work with strict CommonJS, but
@@ -12,13 +13,15 @@
     // like Node.
     module.exports = factory(require("jquery"),
       require("simple-module"),
+      require("simple-hotkeys"),
       require("simple-uploader"));
   } else {
     root['Simditor'] = factory(jQuery,
       SimpleModule,
+      simple.hotkeys,
       simple.uploader);
   }
-}(this, function ($, SimpleModule, simpleUploader) {
+}(this, function ($, SimpleModule, simpleHotkeys, simpleUploader) {
 
 var Selection,
   __hasProp = {}.hasOwnProperty,
@@ -31,7 +34,7 @@ Selection = (function(_super) {
     return Selection.__super__.constructor.apply(this, arguments);
   }
 
-  Selection.className = 'Selection';
+  Selection.pluginName = 'Selection';
 
   Selection.prototype._init = function() {
     this.editor = this._module;
@@ -58,8 +61,9 @@ Selection = (function(_super) {
     this.clear();
     this.sel.addRange(range);
     if (!this.editor.inputManager.focused && (this.editor.util.browser.firefox || this.editor.util.browser.msie)) {
-      return this.editor.body.focus();
+      this.editor.body.focus();
     }
+    return range;
   };
 
   Selection.prototype.rangeAtEndOf = function(node, range) {
@@ -315,6 +319,8 @@ Formatter = (function(_super) {
   function Formatter() {
     return Formatter.__super__.constructor.apply(this, arguments);
   }
+
+  Formatter.pluginName = 'Formatter';
 
   Formatter.prototype._init = function() {
     this.editor = this._module;
@@ -572,6 +578,8 @@ InputManager = (function(_super) {
     return InputManager.__super__.constructor.apply(this, arguments);
   }
 
+  InputManager.pluginName = 'InputManager';
+
   InputManager.prototype.opts = {
     pasteImage: false
   };
@@ -587,7 +595,9 @@ InputManager = (function(_super) {
       this.opts.pasteImage = 'inline';
     }
     this._keystrokeHandlers = {};
-    this._shortcuts = {};
+    this.hotkeys = simpleHotkeys({
+      el: this.editor.body
+    });
     this._pasteArea = $('<div/>').css({
       width: '1px',
       height: '1px',
@@ -620,15 +630,12 @@ InputManager = (function(_super) {
         }
         return _this._selectionTimer = setTimeout(function() {
           return _this.editor.trigger('selectionchanged');
-        }, 50);
+        }, 20);
       };
     })(this));
     this.editor.on('valuechanged', (function(_this) {
       return function() {
-        if (!_this.editor.util.closestBlockEl()) {
-          if (!_this.focused) {
-            return;
-          }
+        if (!_this.editor.util.closestBlockEl() && _this.focused) {
           _this.editor.selection.save();
           _this.editor.formatter.format();
           _this.editor.selection.restore();
@@ -666,22 +673,38 @@ InputManager = (function(_super) {
     })(this));
     this.editor.body.on('keydown', $.proxy(this._onKeyDown, this)).on('keypress', $.proxy(this._onKeyPress, this)).on('keyup', $.proxy(this._onKeyUp, this)).on('mouseup', $.proxy(this._onMouseUp, this)).on('focus', $.proxy(this._onFocus, this)).on('blur', $.proxy(this._onBlur, this)).on('paste', $.proxy(this._onPaste, this)).on('drop', $.proxy(this._onDrop, this));
     if (this.editor.util.browser.firefox) {
-      this.addShortcut('cmd+37', (function(_this) {
+      this.addShortcut('cmd+left', (function(_this) {
         return function(e) {
           e.preventDefault();
           _this.editor.selection.sel.modify('move', 'backward', 'lineboundary');
           return false;
         };
       })(this));
-      this.addShortcut('cmd+39', (function(_this) {
+      this.addShortcut('cmd+right', (function(_this) {
         return function(e) {
           e.preventDefault();
           _this.editor.selection.sel.modify('move', 'forward', 'lineboundary');
           return false;
         };
       })(this));
+      this.addShortcut('cmd+a', (function(_this) {
+        return function(e) {
+          var $children, firstBlock, lastBlock, range;
+          $children = _this.editor.body.children();
+          if (!($children.length > 0)) {
+            return;
+          }
+          firstBlock = $children.first().get(0);
+          lastBlock = $children.last().get(0);
+          range = document.createRange();
+          range.setStart(firstBlock, 0);
+          range.setEnd(lastBlock, _this.editor.util.getNodeLength(lastBlock));
+          _this.editor.selection.selectRange(range);
+          return false;
+        };
+      })(this));
     }
-    submitKey = this.editor.util.os.mac ? 'cmd+13' : 'ctrl+13';
+    submitKey = this.editor.util.os.mac ? 'cmd+enter' : 'ctrl+enter';
     this.addShortcut(submitKey, (function(_this) {
       return function(e) {
         _this.editor.el.closest('form').find('button:submit').click();
@@ -729,13 +752,12 @@ InputManager = (function(_super) {
   };
 
   InputManager.prototype._onKeyDown = function(e) {
-    var $blockEl, metaKey, result, shortcutKey, _base, _ref, _ref1;
+    var $blockEl, metaKey, result, _base, _ref, _ref1;
     if (this.editor.triggerHandler(e) === false) {
       return false;
     }
-    shortcutKey = this.editor.util.getShortcutKey(e);
-    if (this._shortcuts[shortcutKey]) {
-      return this._shortcuts[shortcutKey].call(this, e);
+    if (this.hotkeys.respondTo(e)) {
+      return;
     }
     if (e.which in this._keystrokeHandlers) {
       result = typeof (_base = this._keystrokeHandlers[e.which])['*'] === "function" ? _base['*'](e) : void 0;
@@ -773,6 +795,9 @@ InputManager = (function(_super) {
       setTimeout((function(_this) {
         return function() {
           var $newBlockEl;
+          if (!_this.focused) {
+            return;
+          }
           $newBlockEl = _this.editor.util.closestBlockEl();
           _this.editor.selection.save();
           _this.editor.formatter.cleanNode($newBlockEl, true);
@@ -815,7 +840,6 @@ InputManager = (function(_super) {
     }
     if (!this.editor.util.supportSelectionChange && (_ref = e.which, __indexOf.call(this._arrowKeys, _ref) >= 0)) {
       this.editor.trigger('selectionchanged');
-      this.editor.undoManager.update();
       return;
     }
     if ((e.which === 8 || e.which === 46) && this.editor.util.isEmptyNode(this.editor.body)) {
@@ -880,6 +904,7 @@ InputManager = (function(_super) {
           pasteContent = _this._cleanPasteArea.val();
         } else {
           pasteContent = $('<div/>').append(_this._pasteArea.contents());
+          pasteContent.find('table colgroup').remove();
           _this.editor.formatter.format(pasteContent);
           _this.editor.formatter.decorate(pasteContent);
           _this.editor.formatter.beautify(pasteContent.children());
@@ -938,11 +963,10 @@ InputManager = (function(_super) {
               } else if ($img.is('img[src^="webkit-fake-url://"]')) {
                 return;
               }
-            } else {
-              for (_l = 0, _len3 = children.length; _l < _len3; _l++) {
-                node = children[_l];
-                _this.editor.selection.insertNode(node, range);
-              }
+            }
+            for (_l = 0, _len3 = children.length; _l < _len3; _l++) {
+              node = children[_l];
+              _this.editor.selection.insertNode(node, range);
             }
           } else if ($blockEl.is('p') && _this.editor.util.isEmptyNode($blockEl)) {
             $blockEl.replaceWith(pasteContent);
@@ -1005,7 +1029,7 @@ InputManager = (function(_super) {
   };
 
   InputManager.prototype.addShortcut = function(keys, handler) {
-    return this._shortcuts[keys] = $.proxy(handler, this);
+    return this.hotkeys.add(keys, $.proxy(handler, this));
   };
 
   return InputManager;
@@ -1023,14 +1047,20 @@ Keystroke = (function(_super) {
     return Keystroke.__super__.constructor.apply(this, arguments);
   }
 
+  Keystroke.pluginName = 'Keystroke';
+
   Keystroke.prototype._init = function() {
     var titleEnterHandler;
     this.editor = this._module;
     if (this.editor.util.browser.safari) {
       this.editor.inputManager.addKeystrokeHandler('13', '*', (function(_this) {
         return function(e) {
-          var $br;
+          var $blockEl, $br;
           if (!e.shiftKey) {
+            return;
+          }
+          $blockEl = _this.editor.util.closestBlockEl();
+          if ($blockEl.is('pre')) {
             return;
           }
           $br = $('<br/>');
@@ -1079,7 +1109,9 @@ Keystroke = (function(_super) {
     })(this));
     this.editor.inputManager.addKeystrokeHandler('9', '*', (function(_this) {
       return function(e) {
-        if (!_this.editor.opts.tabIndent) {
+        var codeButton;
+        codeButton = _this.editor.toolbar.findButton('code');
+        if (!(_this.editor.opts.tabIndent || (codeButton && codeButton.active))) {
           return;
         }
         if (e.shiftKey) {
@@ -1164,13 +1196,14 @@ Keystroke = (function(_super) {
     })(this));
     this.editor.inputManager.addKeystrokeHandler('13', 'blockquote', (function(_this) {
       return function(e, $node) {
-        var $closestBlock;
+        var $closestBlock, range;
         $closestBlock = _this.editor.util.closestBlockEl();
         if (!($closestBlock.is('p') && !$closestBlock.next().length && _this.editor.util.isEmptyNode($closestBlock))) {
           return;
         }
         $node.after($closestBlock);
-        _this.editor.selection.setRangeAtStartOf($closestBlock);
+        range = document.createRange();
+        _this.editor.selection.setRangeAtStartOf($closestBlock, range);
         return true;
       };
     })(this));
@@ -1224,25 +1257,27 @@ Keystroke = (function(_super) {
     })(this));
     this.editor.inputManager.addKeystrokeHandler('8', 'pre', (function(_this) {
       return function(e, $node) {
-        var $newNode, codeStr;
+        var $newNode, codeStr, range;
         if (!_this.editor.selection.rangeAtStartOf($node)) {
           return;
         }
         codeStr = $node.html().replace('\n', '<br/>');
         $newNode = $('<p/>').append(codeStr || _this.editor.util.phBr).insertAfter($node);
         $node.remove();
-        _this.editor.selection.setRangeAtStartOf($newNode);
+        range = document.createRange();
+        _this.editor.selection.setRangeAtStartOf($newNode, range);
         return true;
       };
     })(this));
     return this.editor.inputManager.addKeystrokeHandler('8', 'blockquote', (function(_this) {
       return function(e, $node) {
-        var $firstChild;
+        var $firstChild, range;
         if (!_this.editor.selection.rangeAtStartOf($node)) {
           return;
         }
         $firstChild = $node.children().first().unwrap();
-        _this.editor.selection.setRangeAtStartOf($firstChild);
+        range = document.createRange();
+        _this.editor.selection.setRangeAtStartOf($firstChild, range);
         return true;
       };
     })(this));
@@ -1263,7 +1298,7 @@ UndoManager = (function(_super) {
     return UndoManager.__super__.constructor.apply(this, arguments);
   }
 
-  UndoManager.className = 'UndoManager';
+  UndoManager.pluginName = 'UndoManager';
 
   UndoManager.prototype._index = -1;
 
@@ -1276,14 +1311,14 @@ UndoManager = (function(_super) {
     this.editor = this._module;
     this._stack = [];
     if (this.editor.util.os.mac) {
-      undoShortcut = 'cmd+90';
-      redoShortcut = 'shift+cmd+90';
+      undoShortcut = 'cmd+z';
+      redoShortcut = 'shift+cmd+z';
     } else if (this.editor.util.os.win) {
-      undoShortcut = 'ctrl+90';
-      redoShortcut = 'ctrl+89';
+      undoShortcut = 'ctrl+z';
+      redoShortcut = 'ctrl+y';
     } else {
-      undoShortcut = 'ctrl+90';
-      redoShortcut = 'shift+ctrl+90';
+      undoShortcut = 'ctrl+z';
+      redoShortcut = 'shift+ctrl+z';
     }
     this.editor.inputManager.addShortcut(undoShortcut, (function(_this) {
       return function(e) {
@@ -1309,7 +1344,8 @@ UndoManager = (function(_super) {
           _this._timer = null;
         }
         return _this._timer = setTimeout(function() {
-          return _this._pushUndoState();
+          _this._pushUndoState();
+          return _this._timer = null;
         }, 200);
       };
     })(this));
@@ -1523,7 +1559,7 @@ Util = (function(_super) {
     return Util.__super__.constructor.apply(this, arguments);
   }
 
-  Util.className = 'Util';
+  Util.pluginName = 'Util';
 
   Util.prototype._init = function() {
     this.editor = this._module;
@@ -1553,7 +1589,7 @@ Util = (function(_super) {
   })();
 
   Util.prototype.browser = (function() {
-    var chrome, firefox, ie, safari, ua;
+    var chrome, firefox, ie, safari, ua, _ref, _ref1, _ref2, _ref3;
     ua = navigator.userAgent;
     ie = /(msie|trident)/i.test(ua);
     chrome = /chrome|crios/i.test(ua);
@@ -1562,25 +1598,25 @@ Util = (function(_super) {
     if (ie) {
       return {
         msie: true,
-        version: ua.match(/(msie |rv:)(\d+(\.\d+)?)/i)[2] * 1
+        version: ((_ref = ua.match(/(msie |rv:)(\d+(\.\d+)?)/i)) != null ? _ref[2] : void 0) * 1
       };
     } else if (chrome) {
       return {
         webkit: true,
         chrome: true,
-        version: ua.match(/(?:chrome|crios)\/(\d+(\.\d+)?)/i)[1] * 1
+        version: ((_ref1 = ua.match(/(?:chrome|crios)\/(\d+(\.\d+)?)/i)) != null ? _ref1[1] : void 0) * 1
       };
     } else if (safari) {
       return {
         webkit: true,
         safari: true,
-        version: ua.match(/version\/(\d+(\.\d+)?)/i)[1] * 1
+        version: ((_ref2 = ua.match(/version\/(\d+(\.\d+)?)/i)) != null ? _ref2[1] : void 0) * 1
       };
     } else if (firefox) {
       return {
         mozilla: true,
         firefox: true,
-        version: ua.match(/firefox\/(\d+(\.\d+)?)/i)[1] * 1
+        version: ((_ref3 = ua.match(/firefox\/(\d+(\.\d+)?)/i)) != null ? _ref3[1] : void 0) * 1
       };
     } else {
       return {};
@@ -1725,25 +1761,6 @@ Util = (function(_super) {
       }
     }
     return _results;
-  };
-
-  Util.prototype.getShortcutKey = function(e) {
-    var shortcutName;
-    shortcutName = [];
-    if (e.shiftKey) {
-      shortcutName.push('shift');
-    }
-    if (e.ctrlKey) {
-      shortcutName.push('ctrl');
-    }
-    if (e.altKey) {
-      shortcutName.push('alt');
-    }
-    if (e.metaKey) {
-      shortcutName.push('cmd');
-    }
-    shortcutName.push(e.which);
-    return shortcutName.join('+');
   };
 
   Util.prototype.indent = function() {
@@ -1907,12 +1924,13 @@ Toolbar = (function(_super) {
     return Toolbar.__super__.constructor.apply(this, arguments);
   }
 
-  Toolbar.className = 'Toolbar';
+  Toolbar.pluginName = 'Toolbar';
 
   Toolbar.prototype.opts = {
     toolbar: true,
     toolbarFloat: true,
-    toolbarHidden: false
+    toolbarHidden: false,
+    toolbarFloatOffset: 0
   };
 
   Toolbar.prototype._tpl = {
@@ -1947,6 +1965,7 @@ Toolbar = (function(_super) {
     })(this));
     if (!this.opts.toolbarHidden && this.opts.toolbarFloat) {
       this.wrapper.width(this.wrapper.outerWidth());
+      this.wrapper.css('top', this.opts.toolbarFloatOffset);
       toolbarHeight = this.wrapper.outerHeight();
       if (!this.editor.util.os.mobile) {
         $(window).on('resize.simditor-' + this.editor.id, (function(_this) {
@@ -1963,20 +1982,16 @@ Toolbar = (function(_super) {
           var bottomEdge, scrollTop, topEdge;
           topEdge = _this.editor.wrapper.offset().top;
           bottomEdge = topEdge + _this.editor.wrapper.outerHeight() - 80;
-          scrollTop = $(document).scrollTop();
+          scrollTop = $(document).scrollTop() + _this.opts.toolbarFloatOffset;
           if (scrollTop <= topEdge || scrollTop >= bottomEdge) {
             _this.editor.wrapper.removeClass('toolbar-floating').css('padding-top', '');
             if (_this.editor.util.os.mobile) {
-              return _this.wrapper.css({
-                top: 'auto'
-              });
+              return _this.wrapper.css('top', _this.opts.toolbarFloatOffset);
             }
           } else {
             _this.editor.wrapper.addClass('toolbar-floating').css('padding-top', toolbarHeight);
             if (_this.editor.util.os.mobile) {
-              return _this.wrapper.css({
-                top: scrollTop - topEdge
-              });
+              return _this.wrapper.css('top', scrollTop - topEdge + _this.opts.toolbarFloatOffset);
             }
           }
         };
@@ -2110,7 +2125,7 @@ Simditor = (function(_super) {
   };
 
   Simditor.prototype._init = function() {
-    var editor, form, uploadOpts;
+    var e, editor, form, uploadOpts;
     this.textarea = $(this.opts.textarea);
     this.opts.placeholder = this.opts.placeholder || this.textarea.attr('placeholder');
     if (!this.textarea.length) {
@@ -2147,12 +2162,17 @@ Simditor = (function(_super) {
             return _this._placeholder();
           });
         }
-        return _this.setValue(_this.textarea.val() || '');
+        return _this.setValue(_this.textarea.val().trim() || '');
       };
     })(this));
     if (this.util.browser.mozilla) {
-      document.execCommand("enableObjectResizing", false, false);
-      return document.execCommand("enableInlineTableEditing", false, false);
+      this.util.reflow();
+      try {
+        document.execCommand("enableObjectResizing", false, false);
+        return document.execCommand("enableInlineTableEditing", false, false);
+      } catch (_error) {
+        e = _error;
+      }
     }
   };
 
@@ -2206,11 +2226,9 @@ Simditor = (function(_super) {
     this.body.html(val);
     this.formatter.format();
     this.formatter.decorate();
-    return setTimeout((function(_this) {
-      return function() {
-        return _this.trigger('valuechanged');
-      };
-    })(this), 0);
+    this.util.reflow(this.body);
+    this.inputManager.lastCaretPosition = null;
+    return this.trigger('valuechanged');
   };
 
   Simditor.prototype.getValue = function() {
@@ -2219,7 +2237,6 @@ Simditor = (function(_super) {
 
   Simditor.prototype.sync = function() {
     var children, cloneBody, emptyP, firstP, lastP, val;
-    this.hidePopover;
     cloneBody = this.body.clone();
     this.formatter.undecorate(cloneBody);
     this.formatter.format(cloneBody);
@@ -2277,6 +2294,7 @@ Simditor = (function(_super) {
     this.triggerHandler('destroy');
     this.textarea.closest('form').off('.simditor .simditor-' + this.id);
     this.selection.clear();
+    this.inputManager.focused = false;
     this.textarea.insertBefore(this.el).hide().val('').removeData('simditor');
     this.el.remove();
     $(document).off('.simditor-' + this.id);
@@ -2295,7 +2313,7 @@ Simditor.i18n = {
     'code': '插入代码',
     'color': '文字颜色',
     'hr': '分隔线',
-    'insertImage': '插入图片',
+    'image': '插入图片',
     'localImage': '本地图片',
     'externalImage': '外链图片',
     'uploadImage': '上传图片',
@@ -2308,7 +2326,7 @@ Simditor.i18n = {
     'indent': '向右缩进',
     'outdent': '向左缩进',
     'italic': '斜体文字',
-    'insertLink': '插入链接',
+    'link': '插入链接',
     'text': '文本',
     'linkText': '链接文字',
     'linkUrl': '地址',
@@ -2332,7 +2350,8 @@ Simditor.i18n = {
 
 var Button,
   __hasProp = {}.hasOwnProperty,
-  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
+  __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
+  __slice = [].slice;
 
 Button = (function(_super) {
   __extends(Button, _super);
@@ -2368,6 +2387,7 @@ Button = (function(_super) {
 
   function Button(opts) {
     this.editor = opts.editor;
+    this.title = this._t(this.name);
     Button.__super__.constructor.call(this, opts);
   }
 
@@ -2517,6 +2537,16 @@ Button = (function(_super) {
 
   Button.prototype.command = function(param) {};
 
+  Button.prototype._t = function() {
+    var args, result, _ref;
+    args = 1 <= arguments.length ? __slice.call(arguments, 0) : [];
+    result = Button.__super__._t.apply(this, args);
+    if (!result) {
+      result = (_ref = this.editor)._t.apply(_ref, args);
+    }
+    return result;
+  };
+
   return Button;
 
 })(SimpleModule);
@@ -2569,7 +2599,14 @@ Popover = (function(_super) {
     if ($target == null) {
       return;
     }
-    this.editor.hidePopover();
+    this.el.siblings('.simditor-popover').each((function(_this) {
+      return function(i, popover) {
+        popover = $(popover).data('popover');
+        if (popover.active) {
+          return popover.hide();
+        }
+      };
+    })(this));
     this.target = $target.addClass('selected');
     if (this.active) {
       this.refresh(position);
@@ -2650,31 +2687,40 @@ TitleButton = (function(_super) {
 
   TitleButton.prototype.name = 'title';
 
-  TitleButton.prototype.title = Simditor._t('title');
-
   TitleButton.prototype.htmlTag = 'h1, h2, h3, h4';
 
   TitleButton.prototype.disableTag = 'pre, table';
 
-  TitleButton.prototype.menu = [
-    {
-      name: 'normal',
-      text: Simditor._t('normalText'),
-      param: 'p'
-    }, '|', {
-      name: 'h1',
-      text: Simditor._t('title') + ' 1',
-      param: 'h1'
-    }, {
-      name: 'h2',
-      text: Simditor._t('title') + ' 2',
-      param: 'h2'
-    }, {
-      name: 'h3',
-      text: Simditor._t('title') + ' 3',
-      param: 'h3'
-    }
-  ];
+  TitleButton.prototype._init = function() {
+    this.menu = [
+      {
+        name: 'normal',
+        text: this._t('normalText'),
+        param: 'p'
+      }, '|', {
+        name: 'h1',
+        text: this._t('title') + ' 1',
+        param: 'h1'
+      }, {
+        name: 'h2',
+        text: this._t('title') + ' 2',
+        param: 'h2'
+      }, {
+        name: 'h3',
+        text: this._t('title') + ' 3',
+        param: 'h3'
+      }, {
+        name: 'h4',
+        text: this._t('title') + ' 4',
+        param: 'h4'
+      }, {
+        name: 'h5',
+        text: this._t('title') + ' 5',
+        param: 'h5'
+      }
+    ];
+    return TitleButton.__super__._init.call(this);
+  };
 
   TitleButton.prototype.setActive = function(active, param) {
     TitleButton.__super__.setActive.call(this, active);
@@ -2766,22 +2812,20 @@ BoldButton = (function(_super) {
 
   BoldButton.prototype.icon = 'bold';
 
-  BoldButton.prototype.title = Simditor._t('bold');
-
   BoldButton.prototype.htmlTag = 'b, strong';
 
   BoldButton.prototype.disableTag = 'pre';
 
-  BoldButton.prototype.shortcut = 'cmd+66';
+  BoldButton.prototype.shortcut = 'cmd+b';
 
-  BoldButton.prototype.render = function() {
+  BoldButton.prototype._init = function() {
     if (this.editor.util.os.mac) {
       this.title = this.title + ' ( Cmd + b )';
     } else {
       this.title = this.title + ' ( Ctrl + b )';
-      this.shortcut = 'ctrl+66';
+      this.shortcut = 'ctrl+b';
     }
-    return BoldButton.__super__.render.call(this);
+    return BoldButton.__super__._init.call(this);
   };
 
   BoldButton.prototype.status = function($node) {
@@ -2824,22 +2868,20 @@ ItalicButton = (function(_super) {
 
   ItalicButton.prototype.icon = 'italic';
 
-  ItalicButton.prototype.title = Simditor._t('italic');
-
   ItalicButton.prototype.htmlTag = 'i';
 
   ItalicButton.prototype.disableTag = 'pre';
 
-  ItalicButton.prototype.shortcut = 'cmd+73';
+  ItalicButton.prototype.shortcut = 'cmd+i';
 
-  ItalicButton.prototype.render = function() {
+  ItalicButton.prototype._init = function() {
     if (this.editor.util.os.mac) {
       this.title = this.title + ' ( Cmd + i )';
     } else {
       this.title = this.title + ' ( Ctrl + i )';
-      this.shortcut = 'ctrl+73';
+      this.shortcut = 'ctrl+i';
     }
-    return ItalicButton.__super__.render.call(this);
+    return ItalicButton.__super__._init.call(this);
   };
 
   ItalicButton.prototype.status = function($node) {
@@ -2882,20 +2924,18 @@ UnderlineButton = (function(_super) {
 
   UnderlineButton.prototype.icon = 'underline';
 
-  UnderlineButton.prototype.title = Simditor._t('underline');
-
   UnderlineButton.prototype.htmlTag = 'u';
 
   UnderlineButton.prototype.disableTag = 'pre';
 
-  UnderlineButton.prototype.shortcut = 'cmd+85';
+  UnderlineButton.prototype.shortcut = 'cmd+u';
 
   UnderlineButton.prototype.render = function() {
     if (this.editor.util.os.mac) {
       this.title = this.title + ' ( Cmd + u )';
     } else {
       this.title = this.title + ' ( Ctrl + u )';
-      this.shortcut = 'ctrl+85';
+      this.shortcut = 'ctrl+u';
     }
     return UnderlineButton.__super__.render.call(this);
   };
@@ -2940,8 +2980,6 @@ ColorButton = (function(_super) {
   ColorButton.prototype.name = 'color';
 
   ColorButton.prototype.icon = 'font';
-
-  ColorButton.prototype.title = Simditor._t('color');
 
   ColorButton.prototype.disableTag = 'pre';
 
@@ -3165,22 +3203,20 @@ OrderListButton = (function(_super) {
 
   OrderListButton.prototype.name = 'ol';
 
-  OrderListButton.prototype.title = Simditor._t('ol');
-
   OrderListButton.prototype.icon = 'list-ol';
 
   OrderListButton.prototype.htmlTag = 'ol';
 
-  OrderListButton.prototype.shortcut = 'cmd+191';
+  OrderListButton.prototype.shortcut = 'cmd+/';
 
-  OrderListButton.prototype.render = function() {
+  OrderListButton.prototype._init = function() {
     if (this.editor.util.os.mac) {
       this.title = this.title + ' ( Cmd + / )';
     } else {
       this.title = this.title + ' ( ctrl + / )';
-      this.shortcut = 'ctrl+191';
+      this.shortcut = 'ctrl+/';
     }
-    return OrderListButton.__super__.render.call(this);
+    return OrderListButton.__super__._init.call(this);
   };
 
   return OrderListButton;
@@ -3198,22 +3234,20 @@ UnorderListButton = (function(_super) {
 
   UnorderListButton.prototype.name = 'ul';
 
-  UnorderListButton.prototype.title = Simditor._t('ul');
-
   UnorderListButton.prototype.icon = 'list-ul';
 
   UnorderListButton.prototype.htmlTag = 'ul';
 
-  UnorderListButton.prototype.shortcut = 'cmd+190';
+  UnorderListButton.prototype.shortcut = 'cmd+.';
 
-  UnorderListButton.prototype.render = function() {
+  UnorderListButton.prototype._init = function() {
     if (this.editor.util.os.mac) {
       this.title = this.title + ' ( Cmd + . )';
     } else {
       this.title = this.title + ' ( Ctrl + . )';
-      this.shortcut = 'ctrl+190';
+      this.shortcut = 'ctrl+.';
     }
-    return UnorderListButton.__super__.render.call(this);
+    return UnorderListButton.__super__._init.call(this);
   };
 
   return UnorderListButton;
@@ -3238,8 +3272,6 @@ BlockquoteButton = (function(_super) {
   BlockquoteButton.prototype.name = 'blockquote';
 
   BlockquoteButton.prototype.icon = 'quote-left';
-
-  BlockquoteButton.prototype.title = Simditor._t('blockquote');
 
   BlockquoteButton.prototype.htmlTag = 'blockquote';
 
@@ -3320,8 +3352,6 @@ CodeButton = (function(_super) {
   CodeButton.prototype.name = 'code';
 
   CodeButton.prototype.icon = 'code';
-
-  CodeButton.prototype.title = Simditor._t('code');
 
   CodeButton.prototype.htmlTag = 'pre';
 
@@ -3449,7 +3479,7 @@ CodePopover = (function(_super) {
     return CodePopover.__super__.constructor.apply(this, arguments);
   }
 
-  CodePopover.prototype._tpl = "<div class=\"code-settings\">\n  <div class=\"settings-field\">\n    <select class=\"select-lang\">\n      <option value=\"-1\">选择程序语言</option>\n      <option value=\"c++\">C++</option>\n      <option value=\"css\">CSS</option>\n      <option value=\"coffeeScript\">CoffeeScript</option>\n      <option value=\"html\">Html,XML</option>\n      <option value=\"json\">JSON</option>\n      <option value=\"java\">Java</option>\n      <option value=\"js\">JavaScript</option>\n      <option value=\"markdown\">Markdown</option>\n      <option value=\"oc\">Objective C</option>\n      <option value=\"php\">PHP</option>\n      <option value=\"perl\">Perl</option>\n      <option value=\"python\">Python</option>\n      <option value=\"ruby\">Ruby</option>\n      <option value=\"sql\">SQL</option>\n    </select>\n  </div>\n</div>";
+  CodePopover.prototype._tpl = "<div class=\"code-settings\">\n  <div class=\"settings-field\">\n    <select class=\"select-lang\">\n      <option value=\"-1\">选择程序语言</option>\n      <option value=\"bash\">Bash</option>\n      <option value=\"c++\">C++</option>\n      <option value=\"cs\">C#</option>\n      <option value=\"css\">CSS</option>\n      <option value=\"erlang\">Erlang</option>\n      <option value=\"less\">Less</option>\n      <option value=\"scss\">Sass</option>\n      <option value=\"diff\">Diff</option>\n      <option value=\"coffeeScript\">CoffeeScript</option>\n      <option value=\"html\">Html,XML</option>\n      <option value=\"json\">JSON</option>\n      <option value=\"java\">Java</option>\n      <option value=\"js\">JavaScript</option>\n      <option value=\"markdown\">Markdown</option>\n      <option value=\"oc\">Objective C</option>\n      <option value=\"php\">PHP</option>\n      <option value=\"perl\">Perl</option>\n      <option value=\"python\">Python</option>\n      <option value=\"ruby\">Ruby</option>\n      <option value=\"sql\">SQL</option>\n    </select>\n  </div>\n</div>";
 
   CodePopover.prototype.render = function() {
     this.el.addClass('code-popover').append(this._tpl);
@@ -3504,8 +3534,6 @@ LinkButton = (function(_super) {
   LinkButton.prototype.name = 'link';
 
   LinkButton.prototype.icon = 'link';
-
-  LinkButton.prototype.title = Simditor._t('insertLink');
 
   LinkButton.prototype.htmlTag = 'a';
 
@@ -3567,7 +3595,7 @@ LinkButton = (function(_super) {
       $link = $('<a/>', {
         href: 'http://www.example.com',
         target: '_blank',
-        text: linkText || Simditor._t('linkText')
+        text: linkText || this._t('linkText')
       });
       if ($startBlock[0] === $endBlock[0]) {
         range.insertNode($link[0]);
@@ -3603,10 +3631,10 @@ LinkPopover = (function(_super) {
     return LinkPopover.__super__.constructor.apply(this, arguments);
   }
 
-  LinkPopover.prototype._tpl = "<div class=\"link-settings\">\n  <div class=\"settings-field\">\n    <label>" + (Simditor._t('text')) + "</label>\n    <input class=\"link-text\" type=\"text\"/>\n    <a class=\"btn-unlink\" href=\"javascript:;\" title=\"" + (Simditor._t('removeLink')) + "\" tabindex=\"-1\"><span class=\"fa fa-unlink\"></span></a>\n  </div>\n  <div class=\"settings-field\">\n    <label>" + (Simditor._t('linkUrl')) + "</label>\n    <input class=\"link-url\" type=\"text\"/>\n  </div>\n</div>";
-
   LinkPopover.prototype.render = function() {
-    this.el.addClass('link-popover').append(this._tpl);
+    var tpl;
+    tpl = "<div class=\"link-settings\">\n  <div class=\"settings-field\">\n    <label>" + (this._t('text')) + "</label>\n    <input class=\"link-text\" type=\"text\"/>\n    <a class=\"btn-unlink\" href=\"javascript:;\" title=\"" + (this._t('removeLink')) + "\" tabindex=\"-1\"><span class=\"fa fa-unlink\"></span></a>\n  </div>\n  <div class=\"settings-field\">\n    <label>" + (this._t('linkUrl')) + "</label>\n    <input class=\"link-url\" type=\"text\"/>\n  </div>\n</div>";
+    this.el.addClass('link-popover').append(tpl);
     this.textEl = this.el.find('.link-text');
     this.urlEl = this.el.find('.link-url');
     this.unlinkEl = this.el.find('.btn-unlink');
@@ -3688,8 +3716,6 @@ ImageButton = (function(_super) {
 
   ImageButton.prototype.icon = 'picture-o';
 
-  ImageButton.prototype.title = Simditor._t('insertImage');
-
   ImageButton.prototype.htmlTag = 'img';
 
   ImageButton.prototype.disableTag = 'pre, table';
@@ -3698,21 +3724,20 @@ ImageButton = (function(_super) {
 
   ImageButton.prototype.needFocus = false;
 
-  ImageButton.prototype.menu = [
-    {
-      name: 'upload-image',
-      text: Simditor._t('localImage')
-    }, {
-      name: 'external-image',
-      text: Simditor._t('externalImage')
-    }
-  ];
-
   ImageButton.prototype._init = function() {
-    if (this.editor.uploader == null) {
+    if (this.editor.uploader != null) {
+      this.menu = [
+        {
+          name: 'upload-image',
+          text: this._t('localImage')
+        }, {
+          name: 'external-image',
+          text: this._t('externalImage')
+        }
+      ];
+    } else {
       this.menu = false;
     }
-    ImageButton.__super__._init.call(this);
     this.defaultImage = this.editor.opts.defaultImage;
     this.editor.body.on('click', 'img:not([data-non-image])', (function(_this) {
       return function(e) {
@@ -3735,7 +3760,7 @@ ImageButton = (function(_super) {
     this.editor.on('selectionchanged.image', (function(_this) {
       return function() {
         var $contents, $img, range;
-        range = _this.editor.selection.sel.getRangeAt(0);
+        range = _this.editor.selection.getRange();
         if (range == null) {
           return;
         }
@@ -3748,7 +3773,7 @@ ImageButton = (function(_super) {
         }
       };
     })(this));
-    return this.editor.on('valuechanged.image', (function(_this) {
+    this.editor.on('valuechanged.image', (function(_this) {
       return function() {
         var $masks;
         $masks = _this.editor.wrapper.find('.simditor-image-loading');
@@ -3774,6 +3799,7 @@ ImageButton = (function(_super) {
         });
       };
     })(this));
+    return ImageButton.__super__._init.call(this);
   };
 
   ImageButton.prototype.render = function() {
@@ -3795,7 +3821,7 @@ ImageButton = (function(_super) {
         if ($input) {
           $input.remove();
         }
-        return $input = $('<input type="file" title="' + Simditor._t('uploadImage') + '" accept="image/*">').appendTo($uploadItem);
+        return $input = $('<input type="file" title="' + _this._t('uploadImage') + '" accept="image/*">').appendTo($uploadItem);
       };
     })(this);
     createInput();
@@ -3852,15 +3878,17 @@ ImageButton = (function(_super) {
           }
           src = img ? img.src : _this.defaultImage;
           return _this.loadImage($img, src, function() {
-            _this.popover.refresh();
-            return _this.popover.srcEl.val('正在上传...').prop('disabled', true);
+            if (_this.popover.active) {
+              _this.popover.refresh();
+              return _this.popover.srcEl.val(_this._t('uploading')).prop('disabled', true);
+            }
           });
         });
       };
     })(this));
     this.editor.uploader.on('uploadprogress', (function(_this) {
       return function(e, file, loaded, total) {
-        var $img, $mask, percent;
+        var $img, $mask, $txt, percent;
         if (!file.inline) {
           return;
         }
@@ -3872,8 +3900,9 @@ ImageButton = (function(_super) {
         $mask = file.img.data('mask');
         if ($mask) {
           $img = $mask.data('img');
-          if ($img && $img.parent().length > 0) {
-            return $mask.find("span").text(percent);
+          $txt = $mask.find('span');
+          if ($img && $img.parent().length > 0 && percent !== $txt.text()) {
+            return $txt.text(percent);
           } else {
             return $mask.remove();
           }
@@ -3895,13 +3924,16 @@ ImageButton = (function(_super) {
         }
         $img.removeData('mask');
         if (result.success === false) {
-          msg = result.msg || Simditor._t('uploadFailed');
+          msg = result.msg || _this._t('uploadFailed');
           alert(msg);
           $img.attr('src', _this.defaultImage);
         } else {
           $img.attr('src', result.file_path);
         }
-        _this.popover.srcEl.prop('disabled', false);
+        if (_this.popover.active) {
+          _this.popover.srcEl.prop('disabled', false);
+          _this.popover.srcEl.val(result.file_path);
+        }
         _this.editor.trigger('valuechanged');
         if (_this.editor.body.find('img.uploading').length < 1) {
           return _this.editor.uploader.trigger('uploadready', [file, result]);
@@ -3923,7 +3955,7 @@ ImageButton = (function(_super) {
             msg = result.msg;
           } catch (_error) {
             e = _error;
-            msg = Simditor._t('uploadError');
+            msg = _this._t('uploadError');
           }
           alert(msg);
         }
@@ -3936,7 +3968,10 @@ ImageButton = (function(_super) {
         }
         $img.removeData('mask');
         $img.attr('src', _this.defaultImage);
-        _this.popover.srcEl.prop('disabled', false);
+        if (_this.popover.active) {
+          _this.popover.srcEl.prop('disabled', false);
+          _this.popover.srcEl.val(_this.defaultImage);
+        }
         _this.editor.trigger('valuechanged');
         if (_this.editor.body.find('img.uploading').length < 1) {
           return _this.editor.uploader.trigger('uploadready', [file, result]);
@@ -3969,6 +4004,9 @@ ImageButton = (function(_super) {
     img.onload = (function(_this) {
       return function() {
         var height, imgOffset, width, wrapperOffset;
+        if ($mask.hasClass('uploading') && !$img.hasClass('uploading')) {
+          return;
+        }
         width = img.width;
         height = img.height;
         $img.attr({
@@ -4054,37 +4092,53 @@ ImagePopover = (function(_super) {
     return ImagePopover.__super__.constructor.apply(this, arguments);
   }
 
-  ImagePopover.prototype._tpl = "<div class=\"link-settings\">\n  <div class=\"settings-field\">\n    <label>" + (Simditor._t('imageUrl')) + "</label>\n    <input class=\"image-src\" type=\"text\" tabindex=\"1\" />\n    <a class=\"btn-upload\" href=\"javascript:;\" title=\"" + (Simditor._t('uploadImage')) + "\" tabindex=\"-1\">\n      <span class=\"fa fa-upload\"></span>\n    </a>\n  </div>\n  <div class=\"settings-field\">\n    <label>" + (Simditor._t('imageSize')) + "</label>\n    <input class=\"image-size\" id=\"image-width\" type=\"text\" tabindex=\"2\" />\n    <span class=\"times\">×</span>\n    <input class=\"image-size\" id=\"image-height\" type=\"text\" tabindex=\"3\" />\n    <a class=\"btn-restore\" href=\"javascript:;\" title=\"" + (Simditor._t('restoreImageSize')) + "\" tabindex=\"-1\">\n      <span class=\"fa fa-reply\"></span>\n    </a>\n  </div>\n</div>";
-
   ImagePopover.prototype.offset = {
     top: 6,
     left: -4
   };
 
   ImagePopover.prototype.render = function() {
-    this.el.addClass('image-popover').append(this._tpl);
+    var tpl;
+    tpl = "<div class=\"link-settings\">\n  <div class=\"settings-field\">\n    <label>" + (this._t('imageUrl')) + "</label>\n    <input class=\"image-src\" type=\"text\" tabindex=\"1\" />\n    <a class=\"btn-upload\" href=\"javascript:;\" title=\"" + (this._t('uploadImage')) + "\" tabindex=\"-1\">\n      <span class=\"fa fa-upload\"></span>\n    </a>\n  </div>\n  <div class=\"settings-field\">\n    <label>" + (this._t('imageSize')) + "</label>\n    <input class=\"image-size\" id=\"image-width\" type=\"text\" tabindex=\"2\" />\n    <span class=\"times\">×</span>\n    <input class=\"image-size\" id=\"image-height\" type=\"text\" tabindex=\"3\" />\n    <a class=\"btn-restore\" href=\"javascript:;\" title=\"" + (this._t('restoreImageSize')) + "\" tabindex=\"-1\">\n      <span class=\"fa fa-reply\"></span>\n    </a>\n  </div>\n</div>";
+    this.el.addClass('image-popover').append(tpl);
     this.srcEl = this.el.find('.image-src');
     this.srcEl.on('keydown', (function(_this) {
       return function(e) {
-        var src;
-        if (e.which === 13 || e.which === 27) {
-          e.preventDefault();
-          if (e.which === 13 && !_this.target.hasClass('uploading')) {
-            src = _this.srcEl.val();
-            return _this.button.loadImage(_this.target, src, function(success) {
-              if (!success) {
-                return;
-              }
-              _this.button.editor.body.focus();
-              _this.button.editor.selection.setRangeAfter(_this.target);
-              _this.hide();
-              return _this.editor.trigger('valuechanged');
-            });
-          } else {
-            _this.button.editor.body.focus();
-            _this.button.editor.selection.setRangeAfter(_this.target);
-            return _this.hide();
+        var hideAndFocus, src;
+        if (!(e.which === 13 || e.which === 27)) {
+          return;
+        }
+        e.preventDefault();
+        hideAndFocus = function() {
+          _this.button.editor.body.focus();
+          _this.button.editor.selection.setRangeAfter(_this.target);
+          return _this.hide();
+        };
+        if (e.which === 13 && !_this.target.hasClass('uploading')) {
+          src = _this.srcEl.val();
+          if (/^data:image/.test(src) && !_this.editor.uploader) {
+            hideAndFocus();
+            return;
           }
+          return _this.button.loadImage(_this.target, src, function(success) {
+            var blob;
+            if (!success) {
+              return;
+            }
+            if (/^data:image/.test(src)) {
+              blob = _this.editor.util.dataURLtoBlob(src);
+              blob.name = "Base64 Image.png";
+              return _this.editor.uploader.upload(blob, {
+                inline: true,
+                img: _this.target
+              });
+            } else {
+              hideAndFocus();
+              return _this.editor.trigger('valuechanged');
+            }
+          });
+        } else {
+          return hideAndFocus();
         }
       };
     })(this));
@@ -4152,7 +4206,7 @@ ImagePopover = (function(_super) {
         if (_this.input) {
           _this.input.remove();
         }
-        return _this.input = $('<input type="file" title="' + Simditor._t('uploadImage') + '" accept="image/*">').appendTo($uploadBtn);
+        return _this.input = $('<input type="file" title="' + _this._t('uploadImage') + '" accept="image/*">').appendTo($uploadBtn);
       };
     })(this);
     createInput();
@@ -4215,9 +4269,9 @@ ImagePopover = (function(_super) {
     this.width = $img.width();
     this.height = $img.height();
     if ($img.hasClass('uploading')) {
-      return this.srcEl.val(Simditor._t('uploading'));
+      return this.srcEl.val(this._t('uploading')).prop('disabled', true);
     } else {
-      this.srcEl.val($img.attr('src'));
+      this.srcEl.val($img.attr('src')).prop('disabled', false);
       this.widthEl.val(this.width);
       return this.heightEl.val(this.height);
     }
@@ -4244,7 +4298,10 @@ IndentButton = (function(_super) {
 
   IndentButton.prototype.icon = 'indent';
 
-  IndentButton.prototype.title = Simditor._t('indent') + ' (Tab)';
+  IndentButton.prototype._init = function() {
+    this.title = this._t(this.name) + ' (Tab)';
+    return IndentButton.__super__._init.call(this);
+  };
 
   IndentButton.prototype.status = function($node) {
     return true;
@@ -4275,7 +4332,10 @@ OutdentButton = (function(_super) {
 
   OutdentButton.prototype.icon = 'outdent';
 
-  OutdentButton.prototype.title = Simditor._t('outdent') + ' (Shift + Tab)';
+  OutdentButton.prototype._init = function() {
+    this.title = this._t(this.name) + ' (Shift + Tab)';
+    return OutdentButton.__super__._init.call(this);
+  };
 
   OutdentButton.prototype.status = function($node) {
     return true;
@@ -4305,8 +4365,6 @@ HrButton = (function(_super) {
   HrButton.prototype.name = 'hr';
 
   HrButton.prototype.icon = 'minus';
-
-  HrButton.prototype.title = Simditor._t('hr');
 
   HrButton.prototype.htmlTag = 'hr';
 
@@ -4354,8 +4412,6 @@ TableButton = (function(_super) {
 
   TableButton.prototype.icon = 'table';
 
-  TableButton.prototype.title = Simditor._t('table');
-
   TableButton.prototype.htmlTag = 'table';
 
   TableButton.prototype.disableTag = 'pre, li, blockquote';
@@ -4369,6 +4425,7 @@ TableButton = (function(_super) {
       td: ['rowspan', 'colspan'],
       col: ['width']
     });
+    this._initShortcuts();
     this.editor.on('decorate', (function(_this) {
       return function(e, $el) {
         return $el.find('table').each(function(i, table) {
@@ -4526,6 +4583,33 @@ TableButton = (function(_super) {
     })(this));
   };
 
+  TableButton.prototype._initShortcuts = function() {
+    this.editor.inputManager.addShortcut('ctrl+alt+up', (function(_this) {
+      return function(e) {
+        _this.editMenu.find('.menu-item[data-param=insertRowAbove]').click();
+        return false;
+      };
+    })(this));
+    this.editor.inputManager.addShortcut('ctrl+alt+down', (function(_this) {
+      return function(e) {
+        _this.editMenu.find('.menu-item[data-param=insertRowBelow]').click();
+        return false;
+      };
+    })(this));
+    this.editor.inputManager.addShortcut('ctrl+alt+left', (function(_this) {
+      return function(e) {
+        _this.editMenu.find('.menu-item[data-param=insertColLeft]').click();
+        return false;
+      };
+    })(this));
+    return this.editor.inputManager.addShortcut('ctrl+alt+right', (function(_this) {
+      return function(e) {
+        _this.editMenu.find('.menu-item[data-param=insertColRight]').click();
+        return false;
+      };
+    })(this));
+  };
+
   TableButton.prototype.decorate = function($table) {
     if ($table.parent('.simditor-table').length > 0) {
       this.undecorate($table);
@@ -4543,7 +4627,7 @@ TableButton = (function(_super) {
   };
 
   TableButton.prototype.renderMenu = function() {
-    $("<div class=\"menu-create-table\">\n</div>\n<div class=\"menu-edit-table\">\n  <ul>\n    <li><a tabindex=\"-1\" unselectable=\"on\" class=\"menu-item\" href=\"javascript:;\" data-param=\"deleteRow\"><span>" + (Simditor._t('deleteRow')) + "</span></a></li>\n    <li><a tabindex=\"-1\" unselectable=\"on\" class=\"menu-item\" href=\"javascript:;\" data-param=\"insertRowAbove\"><span>" + (Simditor._t('insertRowAbove')) + "</span></a></li>\n    <li><a tabindex=\"-1\" unselectable=\"on\" class=\"menu-item\" href=\"javascript:;\" data-param=\"insertRowBelow\"><span>" + (Simditor._t('insertRowBelow')) + "</span></a></li>\n    <li><span class=\"separator\"></span></li>\n    <li><a tabindex=\"-1\" unselectable=\"on\" class=\"menu-item\" href=\"javascript:;\" data-param=\"deleteCol\"><span>" + (Simditor._t('delteColumn')) + "</span></a></li>\n    <li><a tabindex=\"-1\" unselectable=\"on\" class=\"menu-item\" href=\"javascript:;\" data-param=\"insertColLeft\"><span>" + (Simditor._t('insertColumnLeft')) + "</span></a></li>\n    <li><a tabindex=\"-1\" unselectable=\"on\" class=\"menu-item\" href=\"javascript:;\" data-param=\"insertColRight\"><span>" + (Simditor._t('insertColumnRight')) + "</span></a></li>\n    <li><span class=\"separator\"></span></li>\n    <li><a tabindex=\"-1\" unselectable=\"on\" class=\"menu-item\" href=\"javascript:;\" data-param=\"deleteTable\"><span>" + (Simditor._t('deleteTable')) + "</span></a></li>\n  </ul>\n</div>").appendTo(this.menuWrapper);
+    $("<div class=\"menu-create-table\">\n</div>\n<div class=\"menu-edit-table\">\n  <ul>\n    <li><a tabindex=\"-1\" unselectable=\"on\" class=\"menu-item\" href=\"javascript:;\" data-param=\"deleteRow\"><span>" + (this._t('deleteRow')) + " ( Ctrl + Alt + → )</span></a></li>\n    <li><a tabindex=\"-1\" unselectable=\"on\" class=\"menu-item\" href=\"javascript:;\" data-param=\"insertRowAbove\"><span>" + (this._t('insertRowAbove')) + " ( Ctrl + Alt + ↑ )</span></a></li>\n    <li><a tabindex=\"-1\" unselectable=\"on\" class=\"menu-item\" href=\"javascript:;\" data-param=\"insertRowBelow\"><span>" + (this._t('insertRowBelow')) + " ( Ctrl + Alt + ↓ )</span></a></li>\n    <li><span class=\"separator\"></span></li>\n    <li><a tabindex=\"-1\" unselectable=\"on\" class=\"menu-item\" href=\"javascript:;\" data-param=\"deleteCol\"><span>" + (this._t('deleteColumn')) + "</span></a></li>\n    <li><a tabindex=\"-1\" unselectable=\"on\" class=\"menu-item\" href=\"javascript:;\" data-param=\"insertColLeft\"><span>" + (this._t('insertColumnLeft')) + " ( Ctrl + Alt + ← )</span></a></li>\n    <li><a tabindex=\"-1\" unselectable=\"on\" class=\"menu-item\" href=\"javascript:;\" data-param=\"insertColRight\"><span>" + (this._t('insertColumnRight')) + " ( Ctrl + Alt + → )</span></a></li>\n    <li><span class=\"separator\"></span></li>\n    <li><a tabindex=\"-1\" unselectable=\"on\" class=\"menu-item\" href=\"javascript:;\" data-param=\"deleteTable\"><span>" + (this._t('deleteTable')) + "</span></a></li>\n  </ul>\n</div>").appendTo(this.menuWrapper);
     this.createMenu = this.menuWrapper.find('.menu-create-table');
     this.editMenu = this.menuWrapper.find('.menu-edit-table');
     this.createTable(6, 6).appendTo(this.createMenu);
@@ -4774,8 +4858,6 @@ StrikethroughButton = (function(_super) {
 
   StrikethroughButton.prototype.icon = 'strikethrough';
 
-  StrikethroughButton.prototype.title = Simditor._t('strikethrough');
-
   StrikethroughButton.prototype.htmlTag = 'strike';
 
   StrikethroughButton.prototype.disableTag = 'pre';
@@ -4805,8 +4887,6 @@ StrikethroughButton = (function(_super) {
 
 Simditor.Toolbar.addButton(StrikethroughButton);
 
-
 return Simditor;
-
 
 }));
